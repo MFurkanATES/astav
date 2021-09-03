@@ -46,6 +46,7 @@ track_status = "-----"
 pilot_conf = 0
 blind_track = 0
 obj_data = 0
+takip_data = []
 
 #---yaw_pid ---
 pre_hata_yaw_pix = 0
@@ -74,11 +75,34 @@ def set_stream_rate():
     print("set_stream servisi hatayla karsilasti: %s" %e)
 #--------------------------------------
 def track_data_line(data):
+  global takip_data
+  global obj_data 
+  data = data.data
+  takip_data = [int(i.split(".")[0]) for i in data.replace("["," ").replace("]"," ").split()]
+  if len(takip_data) < 3:
+    obj_data = 0
+  else:
+    obj_data = 1   
+  
+  
+
   
 def track(image):
-
+  global takip_data
+  objbox = takip_data
   if track_flag == 1 and obj_data == 1:
-    pass
+    
+    cv2.rectangle(image, (int(objbox[0]), int(objbox[1])), (int(objbox[2]), int(objbox[3])),(0,0,255), 2)
+    
+    # filtre elemanları ve tracking icin kontroller eklenecek
+    
+  if track_flag == 0 and obj_data == 1:
+    
+    cv2.rectangle(image, (int(objbox[0]), int(objbox[1])), (int(objbox[2]), int(objbox[3])),(150,255,50), 2)
+    
+    
+    
+  
     
   
   
@@ -162,7 +186,7 @@ def autopilot_rcin_status(rc):
 
   pilot_conf =  rc.channels[6]
   if pilot_conf > 1500:
-    track_status = "-----"
+    track_status = "IZIN YOK"
     track_flag = 0
   if pilot_conf < 1500:
     track_status = "TRACK"
@@ -184,7 +208,7 @@ def autopilot_battery_status(batt_state):
   global current
   global percentage
   voltage = round(batt_state.voltage,2)
-  current = round(batt_state.current,2) 
+  current = round(batt_state.current * -1,2) 
   percentage = round((batt_state.percentage*100),2)
   #print (voltage,current,percentage)
   #otopilotun pil degerlerini verir
@@ -219,6 +243,13 @@ def autopilot_hud_status(hud_status):
   #print heading_compass,air_speed,ground_speed,throttle
   #print (hud_status.heading)
   
+def autopilot_rel_alt_status(alt_status):
+  global relative_altitude
+  relative_altitude = round(alt_status.data,1)
+  #print (relative_altitude)
+  #otopilotun bulunan irtifadan  itibaren yuksekligini verir
+
+  
 def autopilot_imu_orientation(imu_orientation):
   
   global X
@@ -242,6 +273,7 @@ def callback(msg):
   cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
   #print("seq",msg.header.seq)
   info_on_screen(cv_image)
+  track(cv_image)
   cv2.imshow("frame", cv_image)
   if cv2.waitKey(1) & 0xFF == ord('q'):
     rospy.loginfo("finished.")
@@ -261,10 +293,10 @@ def target_line_on_screen(image):
 def hedef_cizgisi(image):
   global pixel_yatay
   global pixel_dikey
-  cv2.rectangle(image,(int(pixel_yatay/4),int(pixel_dikey/10)),(int(3 * pixel_yatay/4),int(9 * pixel_dikey/10)),(150,255,50),1)
+  cv2.rectangle(image,(int(pixel_yatay/4),int(pixel_dikey/10)),(int(3 * pixel_yatay/4),int(9 * pixel_dikey/10)),(150,255,50),2)
 
 
-def pitch_line_on_screen(image):
+"""def pitch_line_on_screen(image):
   #yan cizgiler
   cv2.line(image,(210,160),(210,320),(150,255,50),1)
   cv2.line(image,(430,160),(430,320),(150,255,50),1)
@@ -277,7 +309,21 @@ def pitch_line_on_screen(image):
   cv2.line(image,(430,320),(450,320),(150,255,50),1)
   cv2.line(image,(430,160),(450,160),(150,255,50),1)
   #cv2.putText(image,str(0),(195,245 ),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
-  #cv2.putText(image,str(0),(415,245 ),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
+  #cv2.putText(image,str(0),(415,245 ),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)"""
+  
+def pitch_line_on_screen(image):
+  #yan cizgiler
+  cv2.line(image,(int(pixel_yatay/2)-100,int(pixel_dikey/2)-70),(int(pixel_yatay/2)-100,int(pixel_dikey/2)+70),(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)+100,int(pixel_dikey/2)-70),(int(pixel_yatay/2)+100,int(pixel_dikey/2)+70),(150,255,50),1)
+  #orta cizgiler
+  cv2.line(image,(int(pixel_yatay/2)-90,int(pixel_dikey/2)),(int(pixel_yatay/2)-100,int(pixel_dikey/2)),(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)+100,int(pixel_dikey/2)),(int(pixel_yatay/2)+90,int(pixel_dikey/2)),(150,255,50),1)
+  #uc cizgiler
+  cv2.line(image,(int(pixel_yatay/2)-110,int(pixel_dikey/2)+70),(int(pixel_yatay/2)-100,int(pixel_dikey/2)+70),(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)+100,int(pixel_dikey/2)+70),(int(pixel_yatay/2)+110,int(pixel_dikey/2)+70),(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)-110,int(pixel_dikey/2)-70),(int(pixel_yatay/2)-100,int(pixel_dikey/2)-70),(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)+100,int(pixel_dikey/2)-70),(int(pixel_yatay/2)+110,int(pixel_dikey/2)-70),(150,255,50),1)
+  
 
   
 def pitch_on_screen(image):
@@ -287,10 +333,10 @@ def pitch_on_screen(image):
   screen_angle_pitch = -1 * int(math.degrees(Y))
   #print screen_angle_pitch
   set_pixel = (screen_angle_pitch * 2)  
-  cv2.line(image,(440,(240 + set_pixel)),(430,(240 + set_pixel)),(150,255,50),2)
-  cv2.line(image,(200,(240 + set_pixel)),(210,(240 + set_pixel)),(150,255,50),2)
-  cv2.putText(image,str(screen_angle_pitch),(440,240 + set_pixel),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
-  cv2.putText(image,str(screen_angle_pitch),(180,240 + set_pixel),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
+  cv2.line(image,(int(pixel_yatay/2)+100,(int(pixel_dikey/2) + set_pixel)),(int(pixel_yatay/2)+110,(int(pixel_dikey/2) + set_pixel)),(150,255,50),2)
+  cv2.line(image,(int(pixel_yatay/2)-100,(int(pixel_dikey/2)+ set_pixel)),(int(pixel_yatay/2)-110,(int(pixel_dikey/2) + set_pixel)),(150,255,50),2)
+  cv2.putText(image,str(screen_angle_pitch),(int(pixel_yatay/2)+120,int(pixel_dikey/2) + set_pixel),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
+  cv2.putText(image,str(screen_angle_pitch),(int(pixel_yatay/2)-120,int(pixel_dikey/2) + set_pixel),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)
   
   
 def status_on_screen(image):
@@ -334,7 +380,13 @@ def hud_on_screen(image):
 def track_stats(image):
   
   global track_status
-  cv2.putText(image,(track_status),(pixel_yatay-100,20),cv2.FONT_HERSHEY_PLAIN,1,(0,0,255),2)
+  if (track_status == "TRACK"):
+    color_track = [0,0,255]
+  else:
+    color_track = [150,255,50]
+  
+  cv2.putText(image,(track_status),(pixel_yatay-100,20),cv2.FONT_HERSHEY_PLAIN,1,(color_track),2)
+  
   
 #------------------------------------------
 def info_on_screen(image):
@@ -358,7 +410,9 @@ def autopilot_listener():
   rospy.Subscriber('mavros/imu/data',Imu,autopilot_imu_orientation)
   rospy.Subscriber('mavros/rc/in',RCIn,autopilot_rcin_status)
   rospy.Subscriber('chatter', String,track_data_line)
+  rospy.Subscriber('mavros/global_position/rel_alt',Float64,autopilot_rel_alt_status)
   sub = rospy.Subscriber('line', Image, callback)
+  
 set_stream_rate()
 while not rospy.is_shutdown(): 
   autopilot_listener()  
