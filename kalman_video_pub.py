@@ -16,13 +16,15 @@ def show_camera():
 		while not rospy.is_shutdown():
 			ret_val, img = cap.read();
 			#gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+			
+			print(img.shape)
 			image_ros = bridge.cv2_to_imgmsg(img, encoding="bgr8")
-                        pub.publish(image_ros)			
+			pub.publish(image_ros)			
 			
 		cap.release()
 		cv2.destroyAllWindows()
 	else:
-	        print 'kamera acilamadi ! opecv_mst dosyasina bak'
+	        print ('kamera acilamadi ! opecv_mst dosyasina bak')
 
 
 if __name__ == '__main__':

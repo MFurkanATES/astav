@@ -19,8 +19,9 @@ window_name2 = "Hue histogram back projection"
 old_sec = 0
 new_sec = 0
 
-pixel_yatay = 640
-pixel_dikey = 480
+
+pixel_yatay = int(640)
+pixel_dikey = int(480)
 
 
 #---orientation-----
@@ -40,37 +41,17 @@ quaternion_W = 0.0
 pre_hata_yaw_pix = 0
 hata_yaw_pix = 0
 
-"""if(new_sec != 0):
+#---roll_pid ------
+pre_hata_roll_pix = 0
+hata_roll_pix = 0
 
-    # create window by name (note flags for resizable or not)
+#test
+global flag_pub_yaw 
+global flag_pub_rol
 
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.namedWindow(window_name2, cv2.WINDOW_NORMAL)
-    cv2.namedWindow(window_nameSelection, cv2.WINDOW_NORMAL)
+flag_pub_yaw = 0
+flag_pub_roll = 0
 
-    # set sliders for HSV selection thresholds
-
-    s_lower = 60
-    cv2.createTrackbar("s lower", window_name2, s_lower, 255, nothing)
-    s_upper = 255
-    cv2.createTrackbar("s upper", window_name2, s_upper, 255, nothing)
-    v_lower = 32
-    cv2.createTrackbar("v lower", window_name2, v_lower, 255, nothing)
-    v_upper = 255
-    cv2.createTrackbar("v upper", window_name2, v_upper, 255, nothing)
-
-
-    # Setup the termination criteria for search, either 10 iteration or
-    # move by at least 1 pixel pos. difference
-    term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
-
-def track_object(image,x,y,area): 
-
-        start_t = cv2.getTickCount()
-        s_lower = cv2.getTrackbarPos("s lower", window_name2)
-        s_upper = cv2.getTrackbarPos("s upper", window_name2)
-        v_lower = cv2.getTrackbarPos("v lower", window_name2)
-        v_upper = cv2.getTrackbarPos("v upper", window_name2)"""
 
 
 
@@ -78,107 +59,127 @@ def track_object(image,x,y,area):
 def track_yaw(curr_yaw,target_yaw_pix):
         global pre_hata_yaw_pix 
         global hata_yaw_pix
-        p_yaw = 0.2
+        p_yaw = 0.29
         d_yaw = 0.01
         hata_yaw_pix = 320 - target_yaw_pix
-        print(hata_yaw_pix)
+        #print(hata_yaw_pix)
         if (hata_yaw_pix <= 0):#saat yonu
         #yaw hareketi saat yonunde olacaktir        
                 calc_yaw =  ((p_yaw * hata_yaw_pix) + (d_yaw *(hata_yaw_pix - pre_hata_yaw_pix)))
                 publish_yaw(calc_yaw)
                 pre_hata_yaw_pix = hata_yaw_pix
-                print("calc_yaw ",calc_yaw)
+                #print("calc_yaw ",calc_yaw)
                 
                
         if (hata_yaw_pix > 0): #saat yonu tersi
                 calc_yaw =((p_yaw * hata_yaw_pix) + (d_yaw *(hata_yaw_pix - pre_hata_yaw_pix)))
                 publish_yaw(calc_yaw)
                 pre_hata_yaw_pix = hata_yaw_pix
-                print("calc_yaw",calc_yaw)
+                #print("calc_yaw",calc_yaw)
+        rospy.loginfo("yaw out: %f",calc_yaw)
+
+
+
+def track_roll(curr_roll,target_roll_pix):
+        global pre_hata_roll_pix 
+        global hata_roll_pix
+        p_roll = 0.002
+        d_roll = 0.0001
+        hata_roll_pix = 240 - target_roll_pix
+        #print(hata_roll_pix)
+        if (hata_roll_pix <= 0):#saat yonu
+        #yaw hareketi saat yonunde olacaktir        
+                calc_roll =  ((p_roll * hata_roll_pix) + (d_roll *(hata_roll_pix - pre_hata_roll_pix)))
+                publish_roll(calc_roll)
+                pre_hata_roll_pix = hata_roll_pix
+                #print("calc_roll ",calc_roll)
+                
+               
+        if (hata_roll_pix > 0): #saat yonu tersi
+                calc_roll =((p_roll * hata_roll_pix) + (d_roll *(hata_roll_pix - pre_hata_roll_pix)))
+                publish_roll(calc_roll)
+                pre_hata_roll_pix = hata_roll_pix
+                #print("calc_roll",calc_roll)
+        rospy.loginfo("roll out: %f",calc_roll)
 
 
 
 
 def publish_yaw(new_yaw):
+    global flag_pub_yaw 
+    global flag_pub_roll  
     pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel', TwistStamped, queue_size=10)
     data = TwistStamped()
-    #print(data)
-    
-    data.twist.angular.x = 0
-    data.twist.angular.y = 0
     data.twist.angular.z = math.radians(new_yaw)
-    pub.publish(data)    
-    #print(data)
-    #rospy.loginfo(data)
+    if (flag_pub_yaw == 0):
+    
+    	pub.publish(data) 
+    	flag_pub_roll = 0
+    	flag_pub_yaw  = 1 
+ 
+   
+     
+   
+  
+   
 
-        
+def publish_roll(new_roll):
+    global flag_pub_yaw 
+    global flag_pub_roll
 
-kalman = cv2.KalmanFilter(4, 2)
-kalman.measurementMatrix = np.array([[1, 0, 0, 0],
-                                     [0, 1, 0, 0]], np.float32)
+    pub = rospy.Publisher('/mavros/setpoint_velocity/cmd_vel', TwistStamped, queue_size=10)
+    data = TwistStamped()    
+    data.twist.linear.z = new_roll
+    #data.twist.angular.x = math.radians(new_roll)  
+    if (flag_pub_roll == 0):
+    
+    	pub.publish(data) 
+    	flag_pub_roll = 1
+    	flag_pub_yaw = 0
+  
+   
 
-kalman.transitionMatrix = np.array([[1, 0, 1, 0],
-                                    [0, 1, 0, 1],
-                                    [0, 0, 1, 0],
-                                    [0, 0, 0, 1]], np.float32)
-
-kalman.processNoiseCov = np.array([[1, 0, 0, 0],
-                                   [0, 1, 0, 0],
-                                   [0, 0, 1, 0],
-                                   [0, 0, 0, 1]], np.float32) * 0.03
-
-measurement = np.array((2, 1), np.float32)
-prediction = np.zeros((2, 1), np.float32)
-
-def center(points):
-    x = np.float32(
-        (points[0][0] +
-         points[1][0] +
-         points[2][0] +
-         points[3][0]) /
-        4.0)
-    y = np.float32(
-        (points[0][1] +
-         points[1][1] +
-         points[2][1] +
-         points[3][1]) /
-        4.0)
-    return np.array([np.float32(x), np.float32(y)], np.float32)
 
 def target_line_on_screen(image):
 
         #cv2.line(image,((pixel_yatay/2)-10,pixel_dikey/2),((pixel_yatay/2)-30,pixel_dikey/2),(150,255,50),2)
         #cv2.line(image,((pixel_yatay/2)+10,pixel_dikey/2),((pixel_yatay/2)+30,pixel_dikey/2),(150,255,50),2)
-        cv2.line(image,(pixel_yatay/2 + 10,(pixel_dikey/2)-10),(pixel_yatay/2+10,(pixel_dikey/2)-30),(150,255,50),2)
-        cv2.line(image,(pixel_yatay/2 + 10,(pixel_dikey/2)+10),(pixel_yatay/2+10,(pixel_dikey/2)+30),(150,255,50),2)
-        cv2.line(image,(pixel_yatay/2 - 10,(pixel_dikey/2)-10),(pixel_yatay/2-10,(pixel_dikey/2)-30),(150,255,50),2)
-        cv2.line(image,(pixel_yatay/2 - 10,(pixel_dikey/2)+10),(pixel_yatay/2-10,(pixel_dikey/2)+30),(150,255,50),2)
-
+        cv2.line(image,(330,230),(330,210),(150,255,50),2)
+        cv2.line(image,(330,250),(330,270),(150,255,50),2)
+        cv2.line(image,(310,230),(310,210),(150,255,50),2)
+        cv2.line(image,(310,250),(310,270),(150,255,50),2)
         cv2.line(image,(0,240),(640,240),(150,255,50),2)
 
 def callback(msg):
         global new_sec
         global old_sec
+        
         bridge = CvBridge()
         cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         new_sec = msg.header.seq
-        target_line_on_screen(cv_image)
-        if (new_sec > old_sec):
-                old_sec = new_sec
-                gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-                ret,thresh = cv2.threshold(gray_image,235,255,cv2.THRESH_BINARY)
-
-                cnts=cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[-2]
-                center=None
-	        if len(cnts)>0:
-                        c=max(cnts,key=cv2.contourArea)
-                        ((x,y),radius)=cv2.minEnclosingCircle(c)
-                                              
-                        #cv2.circle(cv_image,(int(x),int(y)),int(radius),(0,255,0))
-                        track_yaw(yaw_degree,x)
-
-                cv2.imshow("frame", cv_image)
         
+        target_line_on_screen(cv_image)
+        #if (new_sec > old_sec):
+                
+        gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        ret,thresh = cv2.threshold(gray_image,245,255,cv2.THRESH_BINARY)
+
+        cnts=cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)[-2]
+        center=None
+        if len(cnts)>0:
+                c=max(cnts,key=cv2.contourArea)
+                ((x,y),radius)=cv2.minEnclosingCircle(c)
+                cv2.line(cv_image,(int(320),int(240)),(int(x),int(y)),(150,255,50),1)                  
+                #cv2.circle(cv_image,(int(x),int(y)),int(radius),(0,255,0))
+                track_yaw(yaw_degree,x)
+                rospy.sleep(0.04)                
+                track_roll(roll_degree,y)
+                
+            
+        cv2.imshow("frame", cv_image)
+	
+
+        	#old_sec = new_sec
 
        
 
