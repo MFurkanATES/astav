@@ -42,17 +42,20 @@ flags.DEFINE_boolean('dont_show', False, 'dont show video output')
 flags.DEFINE_boolean('info', False, 'show detailed info of tracked objects')
 flags.DEFINE_boolean('count', False, 'count objects being tracked on screen')
 
-def talker(dizi):
-    pub = rospy.Publisher('chatter', String, queue_size=100)
-    rospy.init_node('talker', anonymous=True)
-    #rate = rospy.Rate(10) # 10hz
 
+rospy.init_node('yolo_talker', anonymous=True)
+
+def talker(dizi):
+    pub_pose = rospy.Publisher('chatter',String, queue_size=1000)
+    #rospy.init_node('yolo_talker', anonymous=True)
+    #rate = rospy.Rate(10) # 10hz
+    a = time.time()
     pose_str = str(dizi)
     rospy.loginfo(pose_str)
-    pub.publish(pose_str)
+    pub_pose.publish(pose_str)
     
 def show_camera(video):	
-    rospy.init_node('video_csi', anonymous=True)
+    #rospy.init_node('video_csi', anonymous=False)
     pub = rospy.Publisher('line', img, queue_size=100)
     #rate = rospy.Rate(60)
     bridge = CvBridge()
@@ -134,6 +137,7 @@ def main(_argv):
         image_data = image_data / 255.
         image_data = image_data[np.newaxis, ...].astype(np.float32)
         start_time = time.time()
+        #talker(["null null null null null"])
 
       
 
