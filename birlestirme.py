@@ -3,11 +3,13 @@ import numpy as np
 import cv2
 import math
 import tf
-import kalman_filter as kalman
+import kalmanfilter_class as kalman
+import time
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from geometry_msgs.msg import PoseStamped,Vector3,TwistStamped
 from std_msgs.msg import *
 from sensor_msgs.msg import *
 from mavros_msgs.msg import *
@@ -17,9 +19,16 @@ from mavros_msgs.srv import *
 pixel_yatay = 720
 pixel_dikey = 480
 
-X = 0 
-Y = 0
-Z = 0
+X = 0.0
+Y = 0.0
+Z = 0.0
+roll_degree = 0.0
+pitch_degree = 0.0
+yaw_degree = 0.0
+quaternion_X = 0.0
+quaternion_Y = 0.0
+quaternion_Z = 0.0
+quaternion_W = 0.0
 
 #---stats---
 
@@ -47,6 +56,11 @@ pilot_conf = 0
 blind_track = 0
 obj_data = 0
 takip_data = []
+kalman_flag = 0
+kalman_filter = []
+Zt=np.zeros((2,2),dtype=float)
+kalman_x = 0 
+kalman_y = 0
 
 #---yaw_pid ---
 pre_hata_yaw_pix = 0
@@ -61,7 +75,7 @@ hata_roll_pix = 0
 flag_pub_yaw = 0
 flag_pub_roll = 0
 
-
+kalman_list = []
 
 def set_stream_rate():
 	
@@ -77,24 +91,88 @@ def set_stream_rate():
 def track_data_line(data):
   global takip_data
   global obj_data 
+  global kalman_list
+  kalman_list = kalman_list [-5:]
   data = data.data
   takip_data = [int(i.split(".")[0]) for i in data.replace("["," ").replace("]"," ").split()]
-  if len(takip_data) < 3:
+  
+  #print("-------",takip_data,type(takip_data))
+  if (takip_data == []):
     obj_data = 0
   else:
-    obj_data = 1   
+    obj_data = 1  
+     
+  kalman_list.append(obj_data)
   
   
+def kalman_kontrol(kalman_list):
+  try:
+    if kalman_list[-1] == 0 and  kalman_list[-2] == 1:
+      return True
+    else:
+      return False
+  except:
+      return False
 
+  
   
 def track(image):
   global takip_data
+  global kalman_flag
+  global Zt
+  global kalman_filter 
+  global kalman_list
+  global obj_data
   objbox = takip_data
-  if track_flag == 1 and obj_data == 1:
+  """if(kalman_flag == 0):    
+    #Zt[0,0] = 0
+    #Zt[0,1] = 0
+     kalman_filter = kalman.KalmanFilter(Zt) 
+   
+     kalman_flag = 1"""
+  
+  if track_flag == 1 and obj_data == 1 :
     
+    kalman_filter = kalman.KalmanFilter(Zt)    
+
     cv2.rectangle(image, (int(objbox[0]), int(objbox[1])), (int(objbox[2]), int(objbox[3])),(0,0,255), 2)
+    dikey_uzunluk = objbox[3] - objbox[1]
+    yatay_uzunluk = objbox[2] - objbox[0]    
+    #print(yatay_uzunluk,dikey_uzunluk)
+    center_yatay = (objbox[0] + objbox[2]) /2
+    center_dikey = (objbox[1] + objbox[3]) /2    
+    Zt[0,0] = float(center_dikey)
+    Zt[0,1] = float(center_yatay)
+    print(Zt)
     
+    #cv2.putText(image,"center",(int(center_yatay),int(center_dikey)),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1)    
+   
+    center_point = kalman_filter.KalmanUpdate(Zt)
+    kalman_x = center_point[0,0]
+    kalman_y = center_point[1,0]
     # filtre elemanları ve tracking icin kontroller eklenecek
+    #print(kalman_y,kalman_x)
+    #cv2.putText(image,"center",(int(kalman_y),int(kalman_x)),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1) 
+    track_yaw(yaw_degree,kalman_x)
+    #rospy.sleep(0.05)                
+    track_roll(roll_degree,kalman_y)
+    
+  start = time.time()  
+  while (track_flag == 1 and obj_data == 0) and kalman_kontrol(kalman_list):
+    center_point = kalman_filter.KalmanUpdate(Zt)
+    kalman_x = center_point[0,0]
+    kalman_y = center_point[1,0]
+    #cv2.putText(image,"center",(int(kalman_y),int(kalman_x)),cv2.FONT_HERSHEY_PLAIN,1,(150,255,50),1) 
+    kalman_list.append(1)
+    if time.time() - start > 2.5:
+      kalman_list = []
+      break
+       
+     
+    
+    
+    
+    
     
   if track_flag == 0 and obj_data == 1:
     
@@ -266,6 +344,12 @@ def autopilot_imu_orientation(imu_orientation):
   X = euler[0]
   Y = euler[1]
   Z = euler[2]
+  
+  roll_degree = int(abs(math.degrees(X)))
+  pitch_degree = int(abs(math.degrees(Y)))
+  yaw_degree = int(abs(math.degrees(Z)))  
+
+ 
 
   
 def callback(msg):

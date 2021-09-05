@@ -234,7 +234,11 @@ def main(_argv):
         tracker.update(detections)
 
         # update tracks
+        #bos = []
+        if len(tracker.tracks) == 0:
+            talker(tracker.tracks)
         for track in tracker.tracks:
+            
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue 
             bbox = track.to_tlbr()
