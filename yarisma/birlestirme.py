@@ -15,12 +15,16 @@ from sensor_msgs.msg import *
 from mavros_msgs.msg import *
 from mavros_msgs.srv import *
 import time
+import requests
+import json
 
 
 fourcc = cv2.VideoWriter_fourcc(*'avc1') #(*'MP42')
 out = cv2.VideoWriter('/media/gm-iha/evo-ssd/videos/'+str(time.time())+'.avi', fourcc, 60.0, (720,480))
 
-
+cookie = ".AspNetCore.Session=CfDJ8HjCsKwmighDpLgCmEzo9FC5k8YNLEO5aO8Q6MduEdqqtDnivnNOP%2FKs6mDaD%2BbdJsXrHIi32bwrunyiQiKNhJ2oD1owIaWLAQOZ16uMPtDb3yrfZ4TO8NgWwP%2B39dU9HWcOe7l5h0mqz%2FMCzKqxVZyoSjgZHcjiVOpTCNLrjsUF; path=/; samesite=lax; httponly"
+saat_data = 0
+sunucu_saat = 0
 pixel_yatay = 720
 pixel_dikey = 480
 
@@ -77,6 +81,9 @@ dikey = 0
 pre_hata_yaw_pix = 0
 hata_yaw_pix = 0
 
+p_yaw = 0
+d_yaw = 0
+
 #---roll_pid ---
 pre_hata_roll_pix = 0
 hata_roll_pix = 0
@@ -115,7 +122,7 @@ def track_data_line(data):
     elif kalman_sonuc == 2:
       obj_data = 0
     else:
-      print(kalman_sonuc)
+      #print(kalman_sonuc)
       obj_data = 0
   else:
     obj_data = 1  
@@ -148,6 +155,7 @@ def track(image):
   global genislik 
   global dikey 
   global kalman_sonuc
+  global yaw_degree
   objbox = takip_data
   """if(kalman_flag == 0):    
     #Zt[0,0] = 0
@@ -206,7 +214,7 @@ def track(image):
     #buraya kontrol eklenecek
     #cv2.putText(image,"center",(int(kalman_y),int(kalman_x)),cv2.FONT_HERSHEY_PLAIN,1,(150,255,250),1)
     kilitlenme = 1
-    print(0)
+    #print(0)
     track_pub()
     kalman_list.append(2)
     kalman_sonuc=3
@@ -262,8 +270,10 @@ def publish_roll(new_roll):
 def track_yaw(curr_yaw,target_yaw_pix):
   global pre_hata_yaw_pix 
   global hata_yaw_pix
-  p_yaw = 0.29
-  d_yaw = 0.01
+  global p_yaw
+  global d_yaw
+  #p_yaw = 0.29
+  #d_yaw = 0.01
   hata_yaw_pix = 320 - target_yaw_pix
   #print(hata_yaw_pix)
   if (hata_yaw_pix <= 0):#saat yonu
@@ -320,19 +330,36 @@ def track_pub():
   pub_track = rospy.Publisher('track',String, queue_size=100)  
   track_data_str = str(merkez_x) + ' ' + str(merkez_y) + ' ' + str(genislik) + ' ' + str(dikey) + ' ' + str(kilitlenme)
   pub_track.publish(track_data_str)
-  print(track_data_str)
+  #print(track_data_str)
   
 
  
-
+#headers = {'content-type': 'application/json','cookie':cookie}
 #--------------------------------------
+def saat(data):
+  global saat_data
+  global sunucu_saat
+
+  a = data.time_ref.secs 
+  b = data.time_ref.nsecs
+  saat_data = str(time.strftime('%H.%M.%S.{}'.format(str(b)[:3]), time.gmtime(a)))        
+  response = requests.get(url="http://192.168.20.10:64559" + "/api/sunucusaati",headers=headers).json()
+  #response = requests.get(url="http://127.0.0.1:5000/" + "/api/sunucusaati").json()
+  sunucu_saat = str(response["saat"]) + '.' +str(response["dakika"]) + '.' + str(response["saniye"]) + '.' + str(response["milisaniye"])
+  print(sunucu_saat)
+
 def autopilot_rcin_status(rc):
   global pilot_conf
   global track_status
   global track_flag 
+  global p_yaw 
+  global d_yaw
 
   pilot_conf =  rc.channels[5]
-  #pilot_conf =  1100
+  p_yaw = (abs(982.0 - rc.channels[8]) / 3000)  
+  d_yaw = (abs(982.0 - rc.channels[9]) / 5000)
+  print(p_yaw,d_yaw)
+  pilot_conf =  rc.channels[5]
   if pilot_conf > 1500:
     track_status = "IZIN YOK"
     track_flag = 0
@@ -429,14 +456,16 @@ def callback(msg):
   track(cv_image)
 
 
-  print(cv_image.shape)
+  #print(cv_image.shape)
 
   #frame = cv2.resize(cv_image, fsize)
 
   
   out.write(cv_image)
+ 
   
   cv2.imshow("frame", cv_image)
+  cv2.imshow("frame2", cv_image)
   if cv2.waitKey(1) & 0xFF == ord('q'):
     rospy.loginfo("finished.")
   
@@ -549,6 +578,12 @@ def track_stats(image):
   
   cv2.putText(image,(track_status),(pixel_yatay-100,20),cv2.FONT_HERSHEY_PLAIN,1,(color_track),2)
   
+def time_stamp(image):
+  global saat_data
+  global sunucu_saat
+
+  cv2.putText(image,str(saat_data),(300,460),cv2.FONT_HERSHEY_PLAIN,1,(0,0,255),2)
+  cv2.putText(image,str(sunucu_saat),(300,470),cv2.FONT_HERSHEY_PLAIN,1,(0,0,255),2)
   
 #------------------------------------------
 def info_on_screen(image):
@@ -561,6 +596,7 @@ def info_on_screen(image):
   pitch_on_screen(image)
   hedef_cizgisi(image)
   track_stats(image)
+  time_stamp(image)
   
 def autopilot_listener():
   rospy.init_node('kontrol_uav',anonymous=True) 
@@ -573,6 +609,7 @@ def autopilot_listener():
   rospy.Subscriber('mavros/rc/in',RCIn,autopilot_rcin_status)
   rospy.Subscriber('chatter', String,track_data_line)
   rospy.Subscriber('mavros/global_position/rel_alt',Float64,autopilot_rel_alt_status)
+  rospy.Subscriber('mavros/time_reference',TimeReference,saat)
   sub = rospy.Subscriber('line', Image, callback)
   
 set_stream_rate()
