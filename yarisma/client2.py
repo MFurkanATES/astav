@@ -27,6 +27,7 @@ kilitlenme_bilgisi_dikey = 0
 kilitlenme_bilgisi_sonuc = 0
 saniye_eski = 0
 genislik_eski = 0
+ms_eski = 0
 
 
 
@@ -77,7 +78,7 @@ def autopilot_state(state):
   else:
     armed_status = 'ARMED'
 
-  if mode == "GUIDED" or mode == "AUTO":
+  if mode == "GUIDED" or mode == "AUTO" or mode == "RTL":
       mode_status = 1
   else: 
       mode_status = 0
@@ -169,12 +170,15 @@ def autopilot_battery_status(batt_state):
   #otopilotun pil degerlerini verir
 
 def saat(data):
-  global saat_data
+  global saat_data   
+ 
 
   a = data.time_ref.secs 
   b = data.time_ref.nsecs
   saat_data = str(time.strftime('%H.%M.%S.{}'.format(str(b)[:3]), time.gmtime(a)))
+  #print(saat_data)
   test()
+
 
 def track_stats(data):
   global kilitlenme_merkez_x
@@ -279,16 +283,21 @@ class Client:
             print("Error : {}".format(response.text))
 
     def get_server_time(self):
+     
         response = requests.get(url=endpoint + "/api/sunucusaati")
+        
         self.log(Actions.GET_SERVER_TIME,response.status_code,response.json())
         print(response.content)
         return response.json()
+
+  
 
     def send_telemetry_data(self,enlem,boylam,irtifa,dikilme,yonelme,yatis,hiz,batarya,iha_otonom,iha_kilitlenme,hedef_x,hedef_y,hedef_genislik,hedef_yukseklik,gps_saat,gps_dakika,gps_saniye,gps_ms):
         headers = {'content-type': 'application/json','cookie':cookie}
         global saniye_eski
         global genislik_eski
         global kilitlenme_eski_durum
+        global ms_eski
         telemetry_data = {
             "takim_numarasi": client.team_no,
             "IHA_enlem": enlem,
@@ -312,15 +321,13 @@ class Client:
                 "milisaniye":int(gps_ms)
             }
         }
-        print(genislik_eski,hedef_genislik,int(saniye_eski),int(gps_saniye))
-        if int(kilitlenme_eski_durum) != int(iha_kilitlenme) or abs(int(saniye_eski) - int(gps_saniye)) > 1:
+        if int(kilitlenme_eski_durum) != int(iha_kilitlenme) or abs((int(gps_saniye)*1000 + int(gps_ms)) - int(saniye_eski)) >= 800:
           kilitlenme_eski_durum = int(iha_kilitlenme)
-          saniye_eski = int(gps_saniye)
-          print(saniye_eski,gps_saniye,type(saniye_eski),type(gps_saniye))
+          saniye_eski = int(gps_saniye) * 1000 + int(gps_ms)
         #rospy.sleep(1)
           response = requests.post(url=endpoint + "/api/telemetri_gonder", data=json.dumps(telemetry_data), headers=headers)
-        #print(response)
-        #self.log(Actions.POST_SEND_TELEMETRY, response.status_code, response.json())
+          #print(response)
+          #self.log(Actions.POST_SEND_TELEMETRY, response.status_code, response.json())
           data = response.json()
           print(data,response.status_code,"-"*50)
         
@@ -369,7 +376,7 @@ def autopilot_listener():
 
 
 def test():
-  print(saat_data)
+  #print(saat_data)
   if saat_data != 0:
     saat_data_a = saat_data.split('.')
     #print(saat_data_a)
